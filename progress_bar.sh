@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Originally from http://github.com/pollev/bash_progress_bar/
+# Forked to http://github.com/mblockelet/bash_progress_bar/
+
 # Usage:
 # Source this script
 # enable_trapping <- optional to clean up properly if user presses ctrl-c
@@ -134,7 +137,7 @@ clear_progress_bar() {
 print_bar_text() {
     local percentage=$1
     local cols=$(tput cols)
-    let bar_size=$cols-17
+    let bar_size=$cols-8-$(echo "$PROGRESSBAR_TITLE" | wc -c)
 
     local color="${COLOR_FG}${COLOR_BG}"
     if [ "$PROGRESS_BLOCKED" = "true" ]; then
@@ -147,7 +150,7 @@ print_bar_text() {
     progress_bar=$(echo -ne "["; echo -en "${color}"; printf_new "#" $complete_size; echo -en "${RESTORE_FG}${RESTORE_BG}"; printf_new "." $remainder_size; echo -ne "]");
 
     # Print progress bar
-    echo -ne " Progress ${percentage}% ${progress_bar}"
+    echo -ne " $PROGRESSBAR_TITLE ${percentage}% ${progress_bar}"
 }
 
 enable_trapping() {
@@ -170,4 +173,40 @@ printf_new() {
     num=$2
     v=$(printf "%-${num}s" "$str")
     echo -ne "${v// /$str}"
+}
+
+auto_setup_progress_bar() {
+    start=$(grep -n -m 1 auto_setup_progress_bar "$0" | cut -d ':' -f 1)
+    end=$(grep -n -m 1 auto_end_progress_bar "$0" | cut -d ':' -f 1)
+    export PROGRESSBAR_START=$start
+    export PROGRESSBAR_END=$end
+    if [ -n "$1" ]
+    then
+        export PROGRESSBAR_TITLE="$1"
+    else
+        export PROGRESSBAR_TITLE="Progress"
+    fi
+    enable_trapping
+    setup_scroll_area
+    trap auto_draw_progress_bar DEBUG
+}
+
+auto_draw_progress_bar() {
+    if [ "$PROGRESSBAR_BLOCKED" = "true" ]; then
+        export PROGRESSBAR_BLOCKED="false"
+    else
+        lineno=$BASH_LINENO
+        draw_progress_bar $((($lineno-$PROGRESSBAR_START)*100/($PROGRESSBAR_END-$PROGRESSBAR_START)))
+    fi
+}
+
+auto_block_progress_bar() {
+    lineno=$BASH_LINENO
+    block_progress_bar $((($lineno-$PROGRESSBAR_START)*100/($PROGRESSBAR_END-$PROGRESSBAR_START)))
+    export PROGRESSBAR_BLOCKED="true"
+}
+
+auto_end_progress_bar() {
+    trap - DEBUG
+    destroy_scroll_area
 }
